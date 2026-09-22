@@ -75,12 +75,17 @@ class DataPreprocessor:
         if 'date' not in df.columns:
             return df
 
+        # Set date as index for resampling
         df = df.set_index('date')
 
         # Define aggregation rules
         agg_rules = {}
         for col in df.columns:
-            if 'rainfall' in col:
+            if col == 'location':
+                continue # Location is handled by groupby
+            elif col == 'latitude' or col == 'longitude':
+                agg_rules[col] = 'first'
+            elif 'rainfall' in col:
                 agg_rules[col] = 'sum'
             elif 'temperature' in col or 'humidity' in col or 'evaporation' in col:
                 agg_rules[col] = 'mean'
@@ -89,9 +94,13 @@ class DataPreprocessor:
             elif 'population' in col:
                 agg_rules[col] = 'last'
             else:
-                agg_rules[col] = 'mean'
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    agg_rules[col] = 'mean'
+                else:
+                    agg_rules[col] = 'first'
 
-        df_resampled = df.resample(frequency).agg(agg_rules).reset_index()
+        # Group by location, resample the date index, and aggregate
+        df_resampled = df.groupby('location').resample(frequency).agg(agg_rules).reset_index()
         return df_resampled
 
     def generate_preprocessing_report(self, before_df: pd.DataFrame, after_df: pd.DataFrame) -> Dict[str, Any]:
