@@ -1,0 +1,6 @@
+{
+    "low": 80.0,
+    "moderate": 60.0,
+    "high": 40.0,
+    "critical": 20.0
+}

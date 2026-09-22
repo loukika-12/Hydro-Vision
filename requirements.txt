@@ -1,0 +1,16 @@
+flask
+flask-cors
+sqlalchemy
+pandas
+numpy
+scipy
+scikit-learn
+xgboost
+geopandas
+shapely
+rasterio
+joblib
+matplotlib
+plotly
+python-dotenv
+openpyxl
