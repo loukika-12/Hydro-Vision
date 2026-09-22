@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HydroVision | Integrated Water Crisis Prediction</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="d-flex" id="wrapper">
+        <!-- Sidebar -->
+        <div class="bg-dark text-white" id="sidebar-wrapper">
+            <div class="sidebar-heading text-center py-4">
+                <i class="bi bi-droplet-half-fill fs-2 text-info"></i>
+                <h3 class="mt-2">HydroVision</h3>
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="/" class="list-group-item list-group-item-action bg-dark text-white active" id="nav-home">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                </a>
+                <a href="#" class="list-group-item list-group-item-action bg-dark text-white" id="nav-water">
+                    <i class="bi bi-graph-up me-2"></i> Water Availability
+                </a>
+                <a href="#" class="list-group-item list-group-item-action bg-dark text-white" id="nav-risk">
+                    <i class="bi bi-exclamation-triangle me-2"></i> Risk Analysis
+                </a>
+                <a href="#" class="list-group-item list-group-item-action bg-dark text-white" id="nav-gis">
+                    <i class="bi bi-map me-2"></i> GIS Suitability
+                </a>
+                <a href="#" class="list-group-item list-group-item-action bg-dark text-white" id="nav-alerts">
+                    <i class="bi bi-bell me-2"></i> Alerts
+                </a>
+                <a href="#" class="list-group-item list-group-item-action bg-dark text-white" id="nav-metrics">
+                    <i class="bi bi-cpu me-2"></i> Model Performance
+                </a>
+            </div>
+            <div class="sidebar-footer p-3 mt-auto">
+                <small class="text-muted">v1.0 | Decision Support System</small>
+            </div>
+        </div>
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper">
+            <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom px-4 py-3">
+                <div class="container-fluid">
+                    <h4 id="page-title">System Overview</h4>
+                    <div class="ms-auto d-flex align-items-center">
+                        <select id="location-select" class="form-select me-3 w-auto">
+                            <!-- Locations populated by JS -->
+                        </select>
+                        <span class="badge bg-info text-dark">Live Mode</span>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="container-fluid p-4">
+                <!-- KPI Section -->
+                <div class="row g-4 mb-4" id="kpi-container">
+                    <div class="col-md-3">
+                        <div class="card kpi-card border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small mb-1">Predicted Availability</div>
+                                <div class="h3 mb-0" id="kpi-availability">--%</div>
+                                <div class="progress mt-2" style="height: 5px;">
+                                    <div id="avail-progress" class="progress-bar bg-info" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card kpi-card border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small mb-1">Risk Level</div>
+                                <div class="h3 mb-0" id="kpi-risk">--</div>
+                                <div id="risk-badge" class="badge mt-1">Unknown</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card kpi-card border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small mb-1">Groundwater Level</div>
+                                <div class="h3 mb-0" id="kpi-gw">-- m</div>
+                                <div class="text-muted x-small">Current Depth</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card kpi-card border-0 shadow-sm">
+                            <div class="card-body">
+                                <div class="text-muted small mb-1">Reservoir Storage</div>
+                                <div class="h3 mb-0" id="kpi-res">--%</div>
+                                <div class="text-muted x-small">Capacity Used</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content Areas -->
+                <div id="content-dashboard" class="content-section">
+                    <div class="row g-4">
+                        <div class="col-lg-8">
+                            <div class="card border-0 shadow-sm mb-4">
+                                <div class="card-header bg-white py-3">
+                                    <h6 class="mb-0">Water Availability Trend</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="trendChart" height="120"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card border-0 shadow-sm mb-4">
+                                <div class="card-header bg-white py-3">
+                                    <h6 class="mb-0">Model Feature Importance</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="featureChart" height="250"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="content-gis" class="content-section d-none">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Rainwater Harvesting Suitability Map</h6>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="updateMapLayer('risk')">Risk Layer</button>
+                                <button class="btn btn-outline-secondary" onclick="updateMapLayer('suitability')">Suitability Layer</button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="gis-map" style="height: 600px; width: 100%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="content-alerts" class="content-section d-none">
+                    <div class="row" id="alerts-list">
+                        <!-- Alerts injected here -->
+                    </div>
+                </div>
+
+                <div id="content-metrics" class="content-section d-none">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <canvas id="metricsChart" height="100"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
