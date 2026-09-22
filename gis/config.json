@@ -1,0 +1,20 @@
+{
+    "layers": {
+        "rainfall": {
+            "weight": 0.4,
+            "description": "High rainfall increases harvesting potential"
+        },
+        "slope": {
+            "weight": 0.2,
+            "description": "Lower slopes are better for infiltration and storage"
+        },
+        "land_use": {
+            "weight": 0.2,
+            "description": "Permeable surfaces are preferred"
+        },
+        "groundwater_condition": {
+            "weight": 0.2,
+            "description": "Areas with declining water tables are priority for recharge"
+        }
+    }
+}
