@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from config.config import Config
 from database.models import db, WaterData, Prediction, Alert, ModelMetric
@@ -30,6 +30,10 @@ rec_engine = RecommendationEngine()
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({"status": "healthy", "system": "HydroVision API"})
+
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
 
 @app.route('/api/locations', methods=['GET'])
 def get_locations():
