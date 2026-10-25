@@ -4,56 +4,57 @@ import numpy as np
 class WaterAvailabilityIndex:
     """
     Implements a mathematically defined Water Availability Index (WAI).
-    WAI is a derived indicator used as the target variable when observed
-    water supply data is unavailable.
+    WAI is a derived indicator used as the target variable.
 
     WAI Formula:
-    WAI = (w1 * Norm_Rainfall + w2 * Norm_GW + w3 * Norm_Res) / (w4 * Norm_Demand)
-
-    Where Norm_X is the min-max normalization of the variable.
+    WAI = (w1 * Norm_Rainfall + w2 * Norm_GW + w3 * Norm_Res) / (w4 * Norm_Demand + 1) * 100
     """
-    def __init__(self, weights: dict = None):
-        # Default weights based on hydrological importance
+    def __init__(self, weights: dict = None, norm_params: dict = None):
         self.weights = weights or {
             "rainfall": 0.4,
             "groundwater": 0.3,
             "reservoir": 0.3,
-            "demand": 0.5 # Demand acts as a penalty/divisor
+            "demand": 0.5
         }
+        # norm_params should contain {'col': {'min': val, 'max': val}}
+        self.norm_params = norm_params
 
-    def normalize(self, series: pd.Series) -> pd.Series:
+    def normalize(self, series: pd.Series, col_name: str) -> pd.Series:
+        """Normalizes using provided parameters to prevent leakage."""
+        if self.norm_params and col_name in self.norm_params:
+            p = self.norm_params[col_name]
+            denom = p['max'] - p['min']
+            if denom == 0:
+                return series * 0 + 1.0
+            return (series - p['min']) / denom
+
+        # Fallback for training: calculate from current series
         if series.max() == series.min():
             return series * 0 + 1.0
         return (series - series.min()) / (series.max() - series.min())
 
     def calculate_wai(self, df: pd.DataFrame) -> pd.Series:
         """
-        Calculates the WAI for a given dataframe.
-        Expected columns: rainfall, groundwater_level, reservoir_storage, water_demand
+        Calculates the WAI. Expected columns: rainfall, groundwater_level, reservoir_storage, water_demand
         """
-        # Ensure columns exist
         required = ['rainfall', 'groundwater_level', 'reservoir_storage', 'water_demand']
         for col in required:
             if col not in df.columns:
                 raise ValueError(f"Missing required column for WAI: {col}")
 
-        # Normalize indicators
-        # Note: groundwater_level is often 'depth to water', so lower value = more water
-        # We invert it for the index
-        norm_rain = self.normalize(df['rainfall'])
-        norm_gw = self.normalize(-df['groundwater_level'])
-        norm_res = self.normalize(df['reservoir_storage'])
-        norm_demand = self.normalize(df['water_demand'])
+        # Invert groundwater depth (lower depth = more water)
+        gw_inverted = -df['groundwater_level']
 
-        # Calculate Weighted Supply
+        norm_rain = self.normalize(df['rainfall'], 'rainfall')
+        norm_gw = self.normalize(gw_inverted, 'groundwater_level')
+        norm_res = self.normalize(df['reservoir_storage'], 'reservoir_storage')
+        norm_demand = self.normalize(df['water_demand'], 'water_demand')
+
         supply_score = (
             self.weights['rainfall'] * norm_rain +
             self.weights['groundwater'] * norm_gw +
             self.weights['reservoir'] * norm_res
         )
 
-        # Calculate WAI
-        # We add 1 to demand to avoid division by zero and stabilize the index
         wai = (supply_score / (norm_demand * self.weights['demand'] + 1)) * 100
-
         return wai.clip(0, 100)

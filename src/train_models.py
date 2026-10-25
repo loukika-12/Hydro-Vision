@@ -34,10 +34,12 @@ class ModelTrainer:
     def train_and_compare(self, X: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
         """
         Trains multiple baseline models and XGBoost to find the best performer.
+        Uses a strict chronological split to prevent leakage.
         """
         logging.info("Starting model comparison...")
 
-        # Time-series split (80% train, 20% test)
+        # Strict chronological split (First 80% for training, last 20% for testing)
+        # Ensure data is sorted by date before this
         split_idx = int(len(X) * 0.8)
         X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
         y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
@@ -104,16 +106,21 @@ class ModelTrainer:
 
         return self.best_model, self.metrics
 
-    def save_model(self, model, metrics):
-        """Persists model and metadata to disk."""
+    def save_model(self, model, metrics, feature_cols=None):
+        """Persists model, metadata, and feature schema to disk."""
         os.makedirs(self.config.MODEL_PATH, exist_ok=True)
 
         model_file = os.path.join(self.config.MODEL_PATH, 'xgboost_water_availability.pkl')
         joblib.dump(model, model_file)
 
         meta_file = os.path.join(self.config.MODEL_PATH, 'model_metadata.json')
+        meta_data = {
+            "metrics": metrics,
+            "feature_columns": feature_cols,
+            "training_date": datetime.now().isoformat()
+        }
         with open(meta_file, 'w') as f:
             import json
-            json.dump(metrics, f, indent=4)
+            json.dump(meta_data, f, indent=4)
 
         logging.info(f"Model and metadata saved to {self.config.MODEL_PATH}")

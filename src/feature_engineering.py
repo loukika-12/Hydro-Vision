@@ -40,6 +40,7 @@ class FeatureEngineer:
             for col in columns:
                 if col in df.columns:
                     for lag in lags:
+                        # Explicitly use groupby and shift
                         df[f"{col}_lag_{lag}"] = df.groupby('location')[col].shift(lag)
         else:
             # Fallback if location is not present
