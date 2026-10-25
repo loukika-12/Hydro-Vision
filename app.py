@@ -1,18 +1,27 @@
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
+from flask_caching import Cache
 from config.config import Config
 from database.models import db, WaterData, Prediction, Alert, ModelMetric
 import joblib
 import os
 import pandas as pd
+import numpy as np
+import json
 from datetime import datetime
 from src.risk_classifier import RiskClassifier
 from src.alert_engine import AlertEngine
 from src.recommendation_engine import RecommendationEngine
+from src.feature_engineering import FeatureEngineer
+from gis.suitability import GISSuitabilityAnalyzer
+from pydantic import BaseModel, ValidationError
 
 app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
+
+# Cache configuration
+cache = Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
 
 # Initialize DB
 db.init_app(app)
@@ -26,6 +35,8 @@ model = joblib.load(MODEL_PATH)
 risk_classifier = RiskClassifier(Config())
 alert_engine = AlertEngine()
 rec_engine = RecommendationEngine()
+feature_eng = FeatureEngineer()
+gis_analyzer = GISSuitabilityAnalyzer(Config())
 
 @app.route('/api/health', methods=['GET'])
 def health():
@@ -37,9 +48,9 @@ def index():
 
 @app.route('/api/locations', methods=['GET'])
 def get_locations():
-    # In a real app, this would come from the DB. For demo, we return unique locations from data.
-    locations = ["Hyderabad", "Bangalore", "Chennai"]
-    return jsonify(locations)
+    # Fetch unique locations from the database
+    locations = db.session.query(WaterData.location).distinct().all()
+    return jsonify([loc[0] for loc in locations])
 
 @app.route('/api/water-data/<location>', methods=['GET'])
 def get_water_data(location):
@@ -55,27 +66,50 @@ def get_water_data(location):
     return jsonify(results)
 
 @app.route('/api/prediction/<location>', methods=['GET'])
+@cache.cached(timeout=600, query_string=True)
 def get_prediction(location):
-    # For demo: we simulate a prediction using a random feature set for that location
-    # In a real scenario, we would fetch current features from the DB
+    try:
+        # 1. Fetch historical data for the location to build features
+        data = WaterData.query.filter_by(location=location).order_by(WaterData.date.asc()).all()
+        if not data:
+            return jsonify({"error": "No data available for this location"}), 404
 
-    # Simulated current features for the ML model (matches trained features)
-    # This is a simplified vector; in reality, we'd use the FeatureEngineer
-    dummy_features = np.random.uniform(10, 100, 30).reshape(1, -1)
+        # Convert DB records to DataFrame
+        df = pd.DataFrame([{
+            "date": d.date,
+            "rainfall": d.rainfall,
+            "groundwater_level": d.groundwater,
+            "reservoir_storage": d.reservoir,
+            "location": d.location
+        } for d in data])
 
-    # However, to make the API work now, we'll return a mock based on the location
-    # to ensure the frontend has data to display.
-    import numpy as np
-    pred_val = np.random.uniform(30, 90)
-    risk = risk_classifier.classify(pred_val)
+        # 2. Generate features using the pipeline
+        # The model requires lags and rolling means, so we need the historical window
+        df_features = feature_eng.engineer_all(df)
 
-    return jsonify({
-        "location": location,
-        "predicted_availability": round(pred_val, 2),
-        "risk_level": risk,
-        "prediction_period": "June 2027",
-        "model": "XGBoost"
-    })
+        if df_features.empty:
+            return jsonify({"error": "Insufficient historical data to generate features"}), 400
+
+        # 3. Use the most recent feature vector for prediction
+        latest_features = df_features.iloc[[-1]]
+
+        # Drop non-feature columns (date, season, etc.) to match model input
+        # We keep only the columns that were used during training
+        cols_to_drop = ['date', 'season', 'location']
+        X = latest_features.drop(columns=[c for c in cols_to_drop if c in latest_features.columns])
+
+        pred_val = model.predict(X)[0]
+        risk = risk_classifier.classify(pred_val)
+
+        return jsonify({
+            "location": location,
+            "predicted_availability": round(float(pred_val), 2),
+            "risk_level": risk,
+            "prediction_period": "Next Cycle",
+            "model": "XGBoost"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/alerts', methods=['GET'])
 def get_alerts():
@@ -88,12 +122,19 @@ def get_alerts():
     } for a in alerts])
 
 @app.route('/api/gis/suitability', methods=['GET'])
+@cache.cached(timeout=1200)
 def get_gis_suitability():
-    # Load the pre-calculated JSON
+    # Generate suitability dynamically based on the raw GIS sites data
     try:
-        with open('data/processed/harvesting_suitability.json', 'r') as f:
-            import json
-            data = json.load(f)
+        csv_path = os.path.join(Config.DATA_RAW, 'gis_sites_demo.csv')
+        if not os.path.exists(csv_path):
+            return jsonify({"error": "GIS data file not found"}), 404
+
+        df_sites = pd.read_csv(csv_path)
+        suitability_df = gis_analyzer.analyze_region(df_sites)
+
+        # Convert to list of dicts for JSON response
+        data = suitability_df.to_dict(orient='records')
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

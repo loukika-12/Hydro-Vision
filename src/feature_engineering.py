@@ -32,21 +32,39 @@ class FeatureEngineer:
         return df
 
     def add_lag_features(self, df: pd.DataFrame, columns: list, lags: list) -> pd.DataFrame:
-        """Creates historical lag features to capture trends."""
+        """Creates historical lag features to capture trends.
+        Groups by location to prevent cross-location lag contamination.
+        """
         df = df.copy()
-        for col in columns:
-            if col in df.columns:
-                for lag in lags:
-                    df[f"{col}_lag_{lag}"] = df[col].shift(lag)
+        if 'location' in df.columns:
+            for col in columns:
+                if col in df.columns:
+                    for lag in lags:
+                        df[f"{col}_lag_{lag}"] = df.groupby('location')[col].shift(lag)
+        else:
+            # Fallback if location is not present
+            for col in columns:
+                if col in df.columns:
+                    for lag in lags:
+                        df[f"{col}_lag_{lag}"] = df[col].shift(lag)
         return df
 
     def add_rolling_features(self, df: pd.DataFrame, columns: list, windows: list) -> pd.DataFrame:
-        """Creates rolling mean features for smoothing and trend analysis."""
+        """Creates rolling mean features for smoothing and trend analysis.
+        Groups by location to prevent cross-location contamination.
+        """
         df = df.copy()
-        for col in columns:
-            if col in df.columns:
-                for window in windows:
-                    df[f"{col}_roll_{window}"] = df[col].rolling(window=window).mean()
+        if 'location' in df.columns:
+            for col in columns:
+                if col in df.columns:
+                    for window in windows:
+                        df[f"{col}_roll_{window}"] = df.groupby('location')[col].transform(lambda x: x.rolling(window=window).mean())
+        else:
+            # Fallback if location is not present
+            for col in columns:
+                if col in df.columns:
+                    for window in windows:
+                        df[f"{col}_roll_{window}"] = df[col].rolling(window=window).mean()
         return df
 
     def engineer_all(self, df: pd.DataFrame) -> pd.DataFrame:
