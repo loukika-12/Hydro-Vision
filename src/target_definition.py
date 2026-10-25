@@ -4,10 +4,20 @@ import numpy as np
 class WaterAvailabilityIndex:
     """
     Implements a mathematically defined Water Availability Index (WAI).
-    WAI is a derived indicator used as the target variable.
+
+    IMPORTANT: WAI is a DERIVED PROXY TARGET. It should not be treated as observed
+    ground truth unless verified against actual measured water supply data.
 
     WAI Formula:
     WAI = (w1 * Norm_Rainfall + w2 * Norm_GW + w3 * Norm_Res) / (w4 * Norm_Demand + 1) * 100
+
+    Assumptions & Units:
+    - Rainfall: mm/year (Normalized 0-1)
+    - Groundwater: Depth to water level (m). Lower values = higher availability.
+      Calculation uses inverted depth (-depth) for normalization.
+    - Reservoir: Storage percentage (0-100%).
+    - Demand: Volume (m3/year). Acts as a penalty divisor.
+    - Weights: Reflect hydrological importance (Rainfall is highest at 0.4).
     """
     def __init__(self, weights: dict = None, norm_params: dict = None):
         self.weights = weights or {

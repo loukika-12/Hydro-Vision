@@ -1,6 +1,37 @@
 {
-    "MAE": 1.7884360661566074,
-    "MSE": 4.929180739260423,
-    "RMSE": 2.2201758352122525,
-    "R2": 0.9675419422986893
+    "metrics": {
+        "MAE": 1.61676902298257,
+        "MSE": 4.391682527448697,
+        "RMSE": 2.095634158780749,
+        "R2": 0.9709485462255495
+    },
+    "feature_columns": [
+        "rainfall",
+        "temperature",
+        "humidity",
+        "evaporation",
+        "groundwater_level",
+        "reservoir_storage",
+        "population",
+        "water_demand",
+        "year",
+        "month",
+        "quarter",
+        "rainfall_lag_1",
+        "rainfall_lag_3",
+        "rainfall_lag_6",
+        "groundwater_level_lag_1",
+        "groundwater_level_lag_3",
+        "groundwater_level_lag_6",
+        "reservoir_storage_lag_1",
+        "reservoir_storage_lag_3",
+        "reservoir_storage_lag_6",
+        "rainfall_roll_3",
+        "rainfall_roll_6",
+        "groundwater_level_roll_3",
+        "groundwater_level_roll_6",
+        "reservoir_storage_roll_3",
+        "reservoir_storage_roll_6"
+    ],
+    "training_date": "2026-10-25T22:54:23.405808"
 }
