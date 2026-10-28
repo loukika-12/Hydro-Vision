@@ -18,6 +18,9 @@ with app.app_context():
         except Exception: app.logger.exception('Demo data seeding failed')
 
 model=joblib.load(os.path.join(Config.MODEL_PATH,'xgboost_water_availability.pkl'))
+import json
+with open(os.path.join(Config.MODEL_PATH, 'model_metadata.json'), encoding='utf-8') as _meta_file:
+    MODEL_FEATURE_COLUMNS = json.load(_meta_file).get('feature_columns', [])
 from src.risk_classifier import RiskClassifier
 from src.feature_engineering import FeatureEngineer
 from gis.suitability import GISSuitabilityAnalyzer
@@ -45,7 +48,12 @@ def get_prediction(location):
         features=feature_eng.engineer_all(frame)
         if features.empty:return jsonify({'error':'Not enough historical records to build time-series features. At least seven records are recommended.'}),400
         row=features.iloc[[-1]]
-        x=row.drop(columns=[c for c in ['date','season','location'] if c in row.columns])
+        x=row.drop(columns=[c for c in ['date','season','season_code','location'] if c in row.columns])
+        if MODEL_FEATURE_COLUMNS:
+            for column in MODEL_FEATURE_COLUMNS:
+                if column not in x.columns:
+                    x[column] = 0
+            x = x[MODEL_FEATURE_COLUMNS]
         pred=float(model.predict(x)[0])
         return jsonify({'location':location,'predicted_availability':round(pred,2),'risk_level':risk_classifier.classify(pred),'prediction_period':'Next Cycle','model':'XGBoost'})
     except Exception:
