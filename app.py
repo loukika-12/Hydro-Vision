@@ -36,7 +36,7 @@ def build_model_features(rows):
     } for x in rows])
     features=feature_eng.engineer_all(frame)
     if features.empty:
-        return features
+        return features, pd.DataFrame()
     x=features.drop(columns=[c for c in ['date','season','season_code','location'] if c in features.columns]).copy()
     if MODEL_FEATURE_COLUMNS:
         for column in MODEL_FEATURE_COLUMNS:
