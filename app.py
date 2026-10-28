@@ -2,7 +2,7 @@ from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 from flask_caching import Cache
 from config.config import Config
-from database.models import db, WaterData, Alert, ModelMetric
+from database.models import db, WaterData, Alert, ModelMetric, Prediction
 import joblib, os, pandas as pd
 
 app=Flask(__name__)
@@ -55,7 +55,17 @@ def get_prediction(location):
                     x[column] = 0
             x = x[MODEL_FEATURE_COLUMNS]
         pred=float(model.predict(x)[0])
-        return jsonify({'location':location,'predicted_availability':round(pred,2),'risk_level':risk_classifier.classify(pred),'prediction_period':'Next Cycle','model':'XGBoost'})
+        risk = risk_classifier.classify(pred)
+        saved_prediction = Prediction(
+            prediction_date=pd.Timestamp.utcnow().to_pydatetime(),
+            location=location,
+            predicted_availability=round(pred, 2),
+            risk_level=risk,
+            model_version='XGBoost'
+        )
+        db.session.add(saved_prediction)
+        db.session.commit()
+        return jsonify({'location':location,'predicted_availability':round(pred,2),'risk_level':risk,'prediction_period':'Next Cycle','model':'XGBoost'})
     except Exception:
         app.logger.exception('Prediction failed for %s',location)
         return jsonify({'error':'Prediction could not be generated. Check server logs and model feature compatibility.'}),500
