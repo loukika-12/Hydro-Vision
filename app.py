@@ -3,7 +3,8 @@ from flask_cors import CORS
 from flask_caching import Cache
 from config.config import Config
 from database.models import db, WaterData, Alert, ModelMetric, Prediction
-import joblib, os, pandas as pd
+import joblib, os, pandas as pd, uuid
+from datetime import datetime
 
 app=Flask(__name__)
 app.config.from_object(Config)
@@ -26,47 +27,109 @@ from src.feature_engineering import FeatureEngineer
 from gis.suitability import GISSuitabilityAnalyzer
 risk_classifier,feature_eng,gis_analyzer=RiskClassifier(Config()),FeatureEngineer(),GISSuitabilityAnalyzer(Config())
 
+def build_model_features(rows):
+    frame=pd.DataFrame([{
+        'date':x.date,'rainfall':x.rainfall,'temperature':x.temperature,
+        'humidity':x.humidity,'evaporation':x.evaporation,
+        'groundwater_level':x.groundwater_level,'reservoir_storage':x.reservoir_storage,
+        'population':x.population,'water_demand':x.water_demand,'location':x.location
+    } for x in rows])
+    features=feature_eng.engineer_all(frame)
+    if features.empty:
+        return features
+    x=features.drop(columns=[c for c in ['date','season','season_code','location'] if c in features.columns]).copy()
+    if MODEL_FEATURE_COLUMNS:
+        for column in MODEL_FEATURE_COLUMNS:
+            if column not in x.columns:
+                x[column]=0
+        x=x[MODEL_FEATURE_COLUMNS]
+    return features, x
+
+def sync_alert(location, risk):
+    """Keep one active demo warning per region for moderate-or-higher predicted risk."""
+    active=Alert.query.filter_by(location=location,status='ACTIVE').all()
+    if risk in ('MODERATE','HIGH','CRITICAL'):
+        message={
+            'MODERATE':'Model estimate indicates a possible water-scarcity concern. Monitor local conditions.',
+            'HIGH':'Model estimate indicates elevated water-scarcity risk. Prioritize conservation and verify local conditions.',
+            'CRITICAL':'Model estimate indicates critical water-scarcity risk. Verify immediately with local water authorities.'
+        }[risk]
+        matching=next((a for a in active if a.risk_level==risk),None)
+        for alert in active:
+            if alert is not matching:
+                alert.status='RESOLVED'
+        if matching:
+            matching.message=message
+            matching.created_at=datetime.utcnow()
+        else:
+            db.session.add(Alert(id=str(uuid.uuid4()),location=location,risk_level=risk,message=message,status='ACTIVE'))
+    else:
+        for alert in active:
+            alert.status='RESOLVED'
+    db.session.commit()
+
 @app.route('/api/health')
-def health(): return jsonify({'status':'healthy','system':'HydroVision API','database':'connected'})
+def health():
+    return jsonify({'status':'healthy','system':'HydroVision API','database':'connected'})
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    return render_template('index.html')
 @app.route('/api/locations')
 def get_locations():
     rows=db.session.query(WaterData.location).distinct().order_by(WaterData.location).all()
     return jsonify([row[0] for row in rows if row[0]])
 @app.route('/api/water-data/<location>')
 def get_water_data(location):
-    rows=WaterData.query.filter_by(location=location).order_by(WaterData.date.desc()).all()
-    return jsonify([{'date':x.date.isoformat(),'rainfall':x.rainfall,'groundwater':x.groundwater_level,'reservoir':x.reservoir_storage,'availability':x.water_availability} for x in rows])
+    rows=WaterData.query.filter_by(location=location).order_by(WaterData.date.asc()).all()
+    if not rows:
+        return jsonify([])
+    estimated={}
+    try:
+        built=build_model_features(rows)
+        if isinstance(built,tuple):
+            features,x=built
+            values=model.predict(x)
+            for date_value,value in zip(features['date'],values):
+                estimated[pd.Timestamp(date_value).date().isoformat()]=round(float(value),2)
+    except Exception:
+        app.logger.exception('Historical availability estimates failed for %s',location)
+    result=[]
+    for x in rows:
+        actual=x.water_availability
+        estimate=estimated.get(x.date.date().isoformat()) if actual is None else None
+        result.append({
+            'date':x.date.isoformat(),'rainfall':x.rainfall,
+            'groundwater':x.groundwater_level,'reservoir':x.reservoir_storage,
+            'availability':actual if actual is not None else estimate,
+            'availability_source':'observed' if actual is not None else ('model_estimate' if estimate is not None else 'unavailable')
+        })
+    return jsonify(result)
 @app.route('/api/prediction/<location>')
 @cache.cached(timeout=600,query_string=True)
 def get_prediction(location):
     try:
         rows=WaterData.query.filter_by(location=location).order_by(WaterData.date.asc()).all()
-        if not rows:return jsonify({'error':'No data available for this location'}),404
-        frame=pd.DataFrame([{'date':x.date,'rainfall':x.rainfall,'temperature':x.temperature,'humidity':x.humidity,'evaporation':x.evaporation,'groundwater_level':x.groundwater_level,'reservoir_storage':x.reservoir_storage,'population':x.population,'water_demand':x.water_demand,'location':x.location} for x in rows])
-        features=feature_eng.engineer_all(frame)
-        if features.empty:return jsonify({'error':'Not enough historical records to build time-series features. At least seven records are recommended.'}),400
-        row=features.iloc[[-1]]
-        x=row.drop(columns=[c for c in ['date','season','season_code','location'] if c in row.columns])
-        if MODEL_FEATURE_COLUMNS:
-            for column in MODEL_FEATURE_COLUMNS:
-                if column not in x.columns:
-                    x[column] = 0
-            x = x[MODEL_FEATURE_COLUMNS]
-        pred=float(model.predict(x)[0])
-        risk = risk_classifier.classify(pred)
-        saved_prediction = Prediction(
+        if not rows:
+            return jsonify({'error':'No data available for this location'}),404
+        built=build_model_features(rows)
+        if not isinstance(built,tuple) or built[0].empty:
+            return jsonify({'error':'Not enough historical records to build time-series features. At least seven records are recommended.'}),400
+        features,x=built
+        pred=float(model.predict(x.iloc[[-1]])[0])
+        risk=risk_classifier.classify(pred)
+        saved_prediction=Prediction(
             prediction_date=pd.Timestamp.utcnow().to_pydatetime(),
             location=location,
-            predicted_availability=round(pred, 2),
+            predicted_availability=round(pred,2),
             risk_level=risk,
             model_version='XGBoost'
         )
         db.session.add(saved_prediction)
         db.session.commit()
+        sync_alert(location,risk)
         return jsonify({'location':location,'predicted_availability':round(pred,2),'risk_level':risk,'prediction_period':'Next Cycle','model':'XGBoost'})
     except Exception:
+        db.session.rollback()
         app.logger.exception('Prediction failed for %s',location)
         return jsonify({'error':'Prediction could not be generated. Check server logs and model feature compatibility.'}),500
 @app.route('/api/alerts')
@@ -78,7 +141,8 @@ def get_alerts():
 def get_gis_suitability():
     try:
         path=os.path.join(Config.DATA_RAW,'gis_sites_demo.csv')
-        if not os.path.exists(path):return jsonify({'error':'GIS demo dataset is not available.'}),404
+        if not os.path.exists(path):
+            return jsonify({'error':'GIS demo dataset is not available.'}),404
         return jsonify(gis_analyzer.analyze_region(pd.read_csv(path)).to_dict(orient='records'))
     except Exception:
         app.logger.exception('GIS analysis failed')
@@ -87,10 +151,12 @@ def get_gis_suitability():
 def get_metrics():
     rows=ModelMetric.query.order_by(ModelMetric.training_date.desc()).all()
     if not rows:
-        import json
         try:
-            with open(os.path.join(Config.MODEL_PATH,'model_metadata.json'),encoding='utf-8') as f: values=json.load(f).get('metrics',{})
+            with open(os.path.join(Config.MODEL_PATH,'model_metadata.json'),encoding='utf-8') as f:
+                values=json.load(f).get('metrics',{})
             return jsonify([{'model':'XGBoost','mae':values.get('MAE'),'rmse':values.get('RMSE'),'r2':values.get('R2')}])
-        except (OSError,ValueError):return jsonify([])
+        except (OSError,ValueError):
+            return jsonify([])
     return jsonify([{'model':x.model_name,'mae':x.mae,'rmse':x.rmse,'r2':x.r2} for x in rows])
-if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)),debug=False)
+if __name__=='__main__':
+    app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)),debug=False)
