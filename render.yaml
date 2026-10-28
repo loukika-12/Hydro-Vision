@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: hydrovision
+    runtime: python
+    plan: free
+    region: singapore
+    branch: ui-cleanup-render
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash render-start.sh
+    healthCheckPath: /api/health
+    autoDeploy: true
