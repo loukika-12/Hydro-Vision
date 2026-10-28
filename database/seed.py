@@ -1,39 +1,39 @@
 import os
 import pandas as pd
-import numpy as np
 from database.models import db, WaterData, ModelMetric
 from config.config import Config
 
 
 def seed_database():
-    """Populate an empty database from the checked-in demo water dataset."""
+    """Populate an empty database from the project's checked-in demo CSV."""
     print("Seeding database...")
     csv_path = os.path.join(Config.DATA_RAW, "water_resources_demo.csv")
     if os.path.exists(csv_path) and WaterData.query.count() == 0:
         frame = pd.read_csv(csv_path)
-        # Use the project's documented demo availability field when present.
+        # Map only known source columns. The supplied dataset has environmental
+        # observations but no measured water_availability target.
         for _, row in frame.iterrows():
-            value = row.get("water_availability", row.get("availability"))
-            if pd.isna(value):
-                value = np.nan
+            def value(name):
+                v = row.get(name)
+                return None if pd.isna(v) else v
+
             water = WaterData(
-                date=pd.to_datetime(row["date"]),
+                date=pd.to_datetime(row["date"]).to_pydatetime(),
                 location=row["location"],
-                latitude=row.get("latitude"),
-                longitude=row.get("longitude"),
-                rainfall=row.get("rainfall"),
-                temperature=row.get("temperature"),
-                humidity=row.get("humidity"),
-                evaporation=row.get("evaporation"),
-                groundwater_level=row.get("groundwater_level"),
-                reservoir_storage=row.get("reservoir_storage"),
-                population=row.get("population"),
-                water_demand=row.get("water_demand"),
-                water_availability=value
+                latitude=value("latitude"),
+                longitude=value("longitude"),
+                rainfall=value("rainfall"),
+                temperature=value("temperature"),
+                humidity=value("humidity"),
+                evaporation=value("evaporation"),
+                groundwater_level=value("groundwater_level"),
+                reservoir_storage=value("reservoir_storage"),
+                population=value("population"),
+                water_demand=value("water_demand"),
+                water_availability=value("water_availability") if "water_availability" in frame.columns else (value("availability") if "availability" in frame.columns else None)
             )
             db.session.add(water)
 
-    # Prefer persisted metrics if they already exist; never add duplicates on re-seed.
     if ModelMetric.query.count() == 0:
         db.session.add(ModelMetric(
             model_name="XGBoost",
