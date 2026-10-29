@@ -20,6 +20,8 @@ class WaterData(db.Model):
     population = db.Column(db.Float)
     water_demand = db.Column(db.Float)
     water_availability = db.Column(db.Float)
+    # Provenance: synthetic_demo, mixed_synthetic_target, or legacy_demo.
+    data_source = db.Column(db.String(40), nullable=False, default='legacy_demo')
 
 class Prediction(db.Model):
     """Stores ML-generated predictions for future availability."""
