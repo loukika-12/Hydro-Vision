@@ -30,7 +30,7 @@ class RiskClassifier:
         - value >= low_thresh -> LOW
         - value >= mod_thresh -> MODERATE
         - value >= high_thresh -> HIGH
-        - value < critical_thresh -> CRITICAL
+        - value < high_thresh -> CRITICAL (current dashboard boundary: below 40)
         """
         if availability_value >= self.thresholds['low']:
             return "LOW"
