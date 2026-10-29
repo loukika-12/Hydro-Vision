@@ -5,18 +5,33 @@ from config.config import Config
 from database.models import db, WaterData, Alert, ModelMetric, Prediction
 import joblib, os, pandas as pd, uuid
 from datetime import datetime
+from sqlalchemy import inspect, text
 
 app=Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
 cache=Cache(app,config={'CACHE_TYPE':'SimpleCache','CACHE_DEFAULT_TIMEOUT':300})
 db.init_app(app)
+def ensure_schema_compatibility():
+    """Apply small additive migrations for databases created by older releases."""
+    columns = {column["name"] for column in inspect(db.engine).get_columns("water_data")}
+    if "data_source" not in columns:
+        db.session.execute(text(
+            "ALTER TABLE water_data ADD COLUMN data_source VARCHAR(40) DEFAULT 'legacy_demo'"
+        ))
+        db.session.commit()
+
+
 with app.app_context():
     db.create_all()
-    if WaterData.query.count()==0:
+    try:
+        ensure_schema_compatibility()
         from database.seed import seed_database
-        try: seed_database()
-        except Exception: app.logger.exception('Demo data seeding failed')
+        # Safe to run on every boot: the importer deduplicates by location/month.
+        seed_database()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Database schema check or demo-data import failed")
 
 model=joblib.load(os.path.join(Config.MODEL_PATH,'xgboost_water_availability.pkl'))
 import json
@@ -66,11 +81,23 @@ def sync_alert(location, risk):
     else:
         for alert in active:
             alert.status='RESOLVED'
-    db.session.commit()
+    # The caller commits prediction and alert changes in one transaction.
 
 @app.route('/api/health')
 def health():
-    return jsonify({'status':'healthy','system':'HydroVision API','database':'connected'})
+    try:
+        db.session.execute(text("SELECT 1"))
+        return jsonify({
+            'status':'healthy',
+            'system':'HydroVision API',
+            'database':'connected',
+            'water_records':WaterData.query.count(),
+            'locations':db.session.query(WaterData.location).distinct().count()
+        })
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Health check database query failed")
+        return jsonify({'status':'degraded','system':'HydroVision API','database':'unavailable'}),503
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -97,15 +124,19 @@ def get_water_data(location):
     for x in rows:
         actual=x.water_availability
         estimate=estimated.get(x.date.date().isoformat()) if actual is None else None
+        if actual is not None:
+            availability_source = x.data_source or 'legacy_demo'
+        else:
+            availability_source = 'model_estimate' if estimate is not None else 'unavailable'
         result.append({
             'date':x.date.isoformat(),'rainfall':x.rainfall,
             'groundwater':x.groundwater_level,'reservoir':x.reservoir_storage,
             'availability':actual if actual is not None else estimate,
-            'availability_source':'observed' if actual is not None else ('model_estimate' if estimate is not None else 'unavailable')
+            'availability_source':availability_source,
+            'data_source':x.data_source or 'legacy_demo'
         })
     return jsonify(result)
 @app.route('/api/prediction/<location>')
-@cache.cached(timeout=600,query_string=True)
 def get_prediction(location):
     try:
         rows=WaterData.query.filter_by(location=location).order_by(WaterData.date.asc()).all()
@@ -125,9 +156,16 @@ def get_prediction(location):
             model_version='XGBoost'
         )
         db.session.add(saved_prediction)
-        db.session.commit()
         sync_alert(location,risk)
-        return jsonify({'location':location,'predicted_availability':round(pred,2),'risk_level':risk,'prediction_period':'Next Cycle','model':'XGBoost'})
+        db.session.commit()
+        return jsonify({
+            'location':location,
+            'predicted_availability':round(pred,2),
+            'risk_level':risk,
+            'prediction_period':'Next Cycle',
+            'model':'XGBoost',
+            'alert_status':'ACTIVE' if risk in ('MODERATE','HIGH','CRITICAL') else 'RESOLVED_OR_NOT_REQUIRED'
+        })
     except Exception:
         db.session.rollback()
         app.logger.exception('Prediction failed for %s',location)
