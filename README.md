@@ -7,7 +7,8 @@ HydroVision is a Flask-based water resource decision-support demo. The responsiv
 - Historical water observations in a chart and table.
 - Plain-language guidance for Low, Moderate, High and Critical risk levels.
 - Map of demo rainwater-harvesting locations and weighted-overlay suitability scores.
-- Active alerts recorded in the project database.
+- Active alerts recorded in the project database and refreshed after a prediction completes.
+- Idempotent import of a 504-row monthly synthetic dataset for six Telangana demo locations, with source labels in the history table.
 - Model pipeline explanation and evaluation metrics.
 
 ## Run locally (Python 3.10+)
@@ -18,11 +19,15 @@ python -m venv .venv
 pip install -r requirements.txt
 python app.py
 ```
-Open http://127.0.0.1:5000. The app creates its database and seeds demo rows on startup if the database is empty.
+Open http://127.0.0.1:5000. The app creates its database, applies a small additive migration for data-source provenance, and idempotently imports legacy and synthetic demo rows on startup.
 
 ## Deploy on Render
 The repository includes a Render Blueprint file, `render.yaml`. In Render, create a new Blueprint Instance from this repository and deploy the `hydrovision` web service. The service installs requirements and starts Gunicorn on Render's assigned port. SQLite data on a typical web service may not persist across redeployments; for retained data configure managed PostgreSQL and set `DATABASE_URL`.
 
+
+## Dataset documentation
+
+The integrated synthetic dataset and database field mapping are described in **[docs/DATASET_GUIDE.md](docs/DATASET_GUIDE.md)**. The CSV is at `data/raw/hydrovision_synthetic_dataset.csv`. It is simulated demo data, not official measured water data.
 
 ## Project documentation
 
@@ -83,6 +88,8 @@ The checklist below separates current prototype capabilities from work needed be
 
 - [x] Persist generated predictions.
 - [x] Synchronize database-backed warning records with prediction risk.
+- [x] Import synthetic dataset idempotently and expose data provenance in history.
+- [x] Refresh the alert list after the selected region's prediction completes.
 - [x] Attempt model-based estimates where historical availability is missing.
 - [ ] Verify all endpoints against the deployed environment after each release.
 - [ ] Add automated API tests for empty datasets, insufficient history, model errors, and database failures.
