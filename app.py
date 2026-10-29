@@ -103,7 +103,13 @@ def index():
     return render_template('index.html')
 @app.route('/api/locations')
 def get_locations():
-    rows=db.session.query(WaterData.location).distinct().order_by(WaterData.location).all()
+    # Prefer the integrated Telangana dataset for the main selector. Keep the
+    # legacy demo rows in storage, but do not mix unrelated cities into this view.
+    rows = db.session.query(WaterData.location).filter(
+        WaterData.data_source.in_(['synthetic_demo', 'mixed_synthetic_target'])
+    ).distinct().order_by(WaterData.location).all()
+    if not rows:
+        rows = db.session.query(WaterData.location).distinct().order_by(WaterData.location).all()
     return jsonify([row[0] for row in rows if row[0]])
 @app.route('/api/water-data/<location>')
 def get_water_data(location):
