@@ -109,6 +109,12 @@ The GIS sample CSV supplies candidate-site coordinates and factors such as rainf
 
 The application can use SQLite locally. For hosted deployments, configure a managed PostgreSQL database through DATABASE_URL when data must persist across redeployments. A typical ephemeral web-service filesystem should not be treated as durable storage.
 
+### 6.3 Synthetic dataset integration
+
+The repository includes `data/raw/hydrovision_synthetic_dataset.csv` with 504 monthly synthetic records for six example Telangana locations (2019–2025). The import in `database/seed.py` maps its column names to the existing SQLAlchemy schema and deduplicates by location/month. Missing availability targets on matching legacy rows can be filled from the synthetic target; these rows are marked `mixed_synthetic_target`. New rows are marked `synthetic_demo` and legacy rows `legacy_demo`. The API returns source labels so synthetic values are not described as observed measurements.
+
+See the [Dataset Guide](DATASET_GUIDE.md) for the full data dictionary, feature mapping, risk thresholds, target-leakage cautions, and database persistence notes. Synthetic values and labels are suitable for development/testing only, not real-world prediction validation.
+
 ## 7. Machine-Learning Workflow
 
 ### 7.1 Feature engineering
