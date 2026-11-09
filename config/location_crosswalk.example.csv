@@ -1,0 +1,4 @@
+source,source_location,canonical_location_id,canonical_location_name,verification_reference
+# Replace this example with verified mappings; never map by approximate text similarity.
+# source values: kaggle_rainfall_india,cgwb_groundwater,cwc_reservoir
+# verification_reference should cite an official station/reservoir/subdivision document or coordinates.
