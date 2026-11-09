@@ -39,6 +39,8 @@ def rainfall_quarterly(path: Path, crosswalk: pd.DataFrame) -> pd.DataFrame:
     months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
               "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
     require_columns(df, months, "Kaggle rainfall")
+    if df.duplicated(["SUBDIVISION", "YEAR"]).any():
+        raise ValueError("Kaggle rainfall has duplicate subdivision/year rows")
     long = df.melt(id_vars=["SUBDIVISION", "YEAR"], value_vars=months,
                    var_name="month_name", value_name="rainfall_mm")
     month_num = {m: i + 1 for i, m in enumerate(months)}
@@ -46,6 +48,8 @@ def rainfall_quarterly(path: Path, crosswalk: pd.DataFrame) -> pd.DataFrame:
     long["date"] = pd.to_datetime(dict(year=long["YEAR"], month=long["month"], day=1),
                                   errors="coerce")
     long["rainfall_mm"] = pd.to_numeric(long["rainfall_mm"], errors="coerce")
+    if (long["rainfall_mm"].dropna() < 0).any():
+        raise ValueError("Rainfall values cannot be negative; check source units/schema")
     long = long.dropna(subset=["date", "rainfall_mm"])
     long["quarter"] = long["date"].dt.to_period("Q").astype(str)
     long["source_location"] = long["SUBDIVISION"].astype(str).str.strip()
@@ -70,9 +74,15 @@ def observation_quarterly(path: Path, crosswalk: pd.DataFrame, source: str,
     df["date"] = pd.to_datetime(df[date_col], errors="coerce")
     df["value"] = pd.to_numeric(df[value_col], errors="coerce")
     df["source_location"] = df[location_col].astype(str).str.strip()
+    if df.duplicated([date_col, location_col]).any():
+        raise ValueError(f"{source}: duplicate date/location observations need source-specific resolution")
     invalid = int(df["date"].isna().sum())
     missing = int(df["value"].isna().sum())
     df = df.dropna(subset=["date", "value"])
+    if value_name == "reservoir_storage_percent" and ((df["value"] < 0) | (df["value"] > 100)).any():
+        raise ValueError("Reservoir storage_percent must be between 0 and 100; do not pass level or volume")
+    if value_name == "groundwater_depth_m" and unit != "m below ground level":
+        raise ValueError("Groundwater depth must be converted to metres below ground level before ETL")
     df["quarter"] = df["date"].dt.to_period("Q").astype(str)
     df["source"] = source
     df = df.merge(crosswalk, on=["source", "source_location"], how="left", validate="many_to_one")
@@ -83,8 +93,8 @@ def observation_quarterly(path: Path, crosswalk: pd.DataFrame, source: str,
     elif aggregation == "last":
         result = (mapped.sort_values("date").groupby(
             ["canonical_location_id", "canonical_location_name", "quarter"], as_index=False
-        ).tail(1)[["canonical_location_id", "canonical_location_name", "quarter", "value"]]
-          .rename(columns={"value": value_name}))
+        ).tail(1)[["canonical_location_id", "canonical_location_name", "quarter", "date", "value"]]
+          .rename(columns={"value": value_name, "date": f"{value_name}_source_date"}))
     else:
         raise ValueError("aggregation must be mean or last")
     result[f"{value_name}_source"] = source
@@ -135,6 +145,7 @@ def main():
     merged = merged.merge(res, on=["canonical_location_id", "canonical_location_name", "quarter"],
                           how="inner", validate="one_to_one")
     merged["date"] = pd.PeriodIndex(merged["quarter"], freq="Q").to_timestamp(how="end").normalize()
+    merged["source_date"] = merged["date"].dt.strftime("%Y-%m-%d")
     merged["location"] = merged["canonical_location_name"]
     merged["water_demand"] = pd.NA
     merged["water_availability"] = pd.NA
