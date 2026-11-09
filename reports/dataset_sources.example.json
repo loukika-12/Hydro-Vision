@@ -1,0 +1,30 @@
+{
+  "rainfall": {
+    "name": "Kaggle India Rainfall",
+    "url": "https://www.kaggle.com/datasets/aksahaha/rainfall-india",
+    "downloaded_on": null,
+    "license_as_displayed_on_source": null,
+    "original_filename": null,
+    "sha256": null
+  },
+  "groundwater": {
+    "name": "CGWB groundwater",
+    "url": "https://nwdp.nwic.gov.in/dataset/gwl-manual-quarterly-central-ground-water-board-department",
+    "downloaded_on": null,
+    "license_as_displayed_on_source": null,
+    "original_filename": null,
+    "sha256": null
+  },
+  "reservoir": {
+    "name": "CWC reservoir storage",
+    "url": "https://nwdp.nwic.gov.in/en/dataset/reservoir-water-level-manual-daily-centre-water-commission_cwc",
+    "downloaded_on": null,
+    "license_as_displayed_on_source": null,
+    "original_filename": null,
+    "sha256": null
+  },
+  "water_demand": {
+    "status": "not_configured",
+    "note": "Do not populate from estimates and label as measured."
+  }
+}
