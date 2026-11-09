@@ -1,6 +1,7 @@
 flask
 flask-cors
 flask-caching
+Flask-SQLAlchemy
 sqlalchemy
 pandas
 numpy
