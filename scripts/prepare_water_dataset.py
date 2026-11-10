@@ -97,6 +97,8 @@ def rainfall_quarterly(path: Path, crosswalk: pd.DataFrame):
         "unmatched_monthly_records": unmatched, "mapped_monthly_records": int(len(mapped)),
         "integrated_quarterly_records": int(len(out)),
         "mapped_locations": sorted(mapped["source_location"].unique().tolist()),
+        "source_year_min": int(pd.to_numeric(df["YEAR"], errors="coerce").min()) if df["YEAR"].notna().any() else None,
+        "source_year_max": int(pd.to_numeric(df["YEAR"], errors="coerce").max()) if df["YEAR"].notna().any() else None,
         "units": "millimetres per month in source; summed to millimetres per calendar quarter",
     }
     return out, report
