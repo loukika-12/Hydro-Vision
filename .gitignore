@@ -1,0 +1,21 @@
+# Credentials and environment
+.env
+.env.*
+!.env.example
+.kaggle/
+**/kaggle.json
+
+# Downloaded source data and generated real-data outputs
+data/raw/sources/*
+!data/raw/sources/README.md
+data/processed/water_resources_real_quarterly.csv
+reports/real_dataset_report.json
+
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.sqlite
+*.db
