@@ -11,10 +11,10 @@ class RealDataETLTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "crosswalk.csv"
             pd.DataFrame([
-                ["cgwb_groundwater", "Station A", "loc-1", "Area A", "official ref"],
-                ["cgwb_groundwater", "Station A", "loc-1", "Area A", "official ref"],
+                ["cgwb_groundwater", "Station A", "loc-1", "Area A", "watershed", "documented relation", "official ref"],
+                ["cgwb_groundwater", "Station A", "loc-1", "Area A", "watershed", "documented relation", "official ref"],
             ], columns=["source", "source_location", "canonical_location_id",
-                        "canonical_location_name", "verification_reference"]).to_csv(path, index=False)
+                        "canonical_location_name", "canonical_unit_type", "hydrological_basis", "verification_reference"]).to_csv(path, index=False)
             with self.assertRaises(ValueError):
                 load_crosswalk(path)
 
@@ -27,7 +27,7 @@ class RealDataETLTests(unittest.TestCase):
                                        "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]})
             pd.DataFrame([row]).to_csv(source, index=False)
             pd.DataFrame([["kaggle_rainfall_india", "Telangana", "tel-1", "Telangana",
-                           "official subdivision reference"]],
+                           "study_area", "verified study-area relation", "official subdivision reference"]],
                          columns=["source", "source_location", "canonical_location_id",
                                   "canonical_location_name", "verification_reference"]).to_csv(crosswalk, index=False)
             cw = load_crosswalk(crosswalk)
@@ -43,7 +43,7 @@ class RealDataETLTests(unittest.TestCase):
             pd.DataFrame({"date": ["not-a-date", "2020-01-10"],
                           "station": ["Station A", "Station A"],
                           "depth_to_water_m": [4.2, 4.5]}).to_csv(source, index=False)
-            pd.DataFrame([["cgwb_groundwater", "Station A", "loc-1", "Area A", "official ref"]],
+            pd.DataFrame([["cgwb_groundwater", "Station A", "loc-1", "Area A", "watershed", "documented relation", "official ref"]],
                          columns=["source", "source_location", "canonical_location_id",
                                   "canonical_location_name", "verification_reference"]).to_csv(crosswalk_path, index=False)
             cw = load_crosswalk(crosswalk_path)
