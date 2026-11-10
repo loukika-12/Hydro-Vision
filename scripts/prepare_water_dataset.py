@@ -46,14 +46,14 @@ def file_metadata(path: Path, df: pd.DataFrame, date_series=None):
 def load_crosswalk(path: Path) -> pd.DataFrame:
     cw = pd.read_csv(path, dtype=str).fillna("")
     require_columns(cw, ["source", "source_location", "canonical_location_id",
-                         "canonical_location_name", "verification_reference"], "crosswalk")
+                         "canonical_location_name", "canonical_unit_type", "hydrological_basis", "verification_reference"], "crosswalk")
     if cw.empty:
         raise ValueError("Location crosswalk is empty. Add verified source-to-study-unit mappings.")
     if cw.duplicated(["source", "source_location"]).any():
         raise ValueError("Crosswalk contains duplicate source/source_location mappings")
-    if (cw[["verification_reference", "canonical_location_id", "canonical_location_name"]]
+    if (cw[["verification_reference", "canonical_location_id", "canonical_location_name", "canonical_unit_type", "hydrological_basis"]]
             .apply(lambda col: col.str.strip().eq("")).any().any()):
-        raise ValueError("Each crosswalk row needs a canonical ID/name and verification reference")
+        raise ValueError("Each crosswalk row needs canonical ID/name/type, hydrological basis, and verification reference")
     return cw
 
 
