@@ -26,5 +26,33 @@
   "water_demand": {
     "status": "not_configured",
     "note": "Do not populate from estimates and label as measured."
+  },
+  "water_demand_candidates": {
+    "telangana_ulb_water_supply": {
+      "url": "https://data.opencity.in/dataset/telangana-water-supply-data",
+      "source_attribution": "data.telangana.gov.in; resource metadata credits Vaidyanathan R",
+      "geography": "72 Telangana Urban Local Bodies",
+      "available_field": "Water Demand (MLD)",
+      "temporal_status": "snapshot; not a quarterly time series",
+      "license_as_reported": "Public Domain; verify original source terms and attribution",
+      "integration_status": "candidate_only_not_yet_downloaded_or_validated"
+    },
+    "cgwb_dynamic_groundwater_assessment": {
+      "url": "https://data.opencity.in/dataset/national-compilation-of-dynamic-ground-water-resources-india-2025",
+      "available_fields": [
+        "Domestic - Annual Extraction",
+        "Industrial - Annual extraction",
+        "Irrigation - Annual extraction",
+        "Total Annual Extraction"
+      ],
+      "temporal_status": "annual groundwater extraction; not total water demand",
+      "integration_status": "separate_abstraction_variable_not_demand"
+    },
+    "niti_aayog_water_budgeting_method": {
+      "url": "https://www.niti.gov.in/sites/default/files/2025-11/Water_Budgeting.pdf",
+      "method": "rural 55 LPCD; urban 150 LPCD; 20 percent conveyance loss; Census 2011 population adjusted using growth factors",
+      "temporal_status": "derived estimate, not observed demand",
+      "integration_status": "method_reference_only"
+    }
   }
 }
