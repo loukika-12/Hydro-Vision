@@ -42,8 +42,10 @@ metadata before using the percent field. The default adapter expects percentage.
 
 Copy `config/location_crosswalk.example.csv` to
 `config/location_crosswalk.csv` and add only independently verified mappings.
-Each source location maps to a canonical location ID and must include a
-verification reference. The source identifiers are exact-match keys; fuzzy matching
+Each source location maps to a canonical study-unit ID and must include a unit type
+(e.g. watershed, basin, or explicitly justified study area), a written hydrological
+basis for the mapping, and a verification reference. A city/state label alone is not
+a hydrological basis. The source identifiers are exact-match keys; fuzzy matching
 is deliberately disabled.
 
 The output is quarterly:
@@ -74,8 +76,10 @@ Optional column overrides are available; run
 The script writes `data/processed/water_resources_real_quarterly.csv` and
 `reports/real_dataset_report.json`. It exits without producing an integrated file
 if any source file is absent or if the strict intersection is empty. The report
-records row counts, unmatched mappings, invalid dates, missing values, coverage,
-and integrated locations.
+records raw-file SHA-256 hashes, source row counts and columns, missing percentages
+by column, source date ranges, units, invalid dates, unmatched mappings, integrated
+row counts, and integrated locations. License terms are marked unverified until
+you inspect the terms shown by each provider.
 
 ## WAI and model safeguards
 
