@@ -11,7 +11,7 @@ the coverage and quality checks described here.
 | Rainfall | [Kaggle India Rainfall](https://www.kaggle.com/datasets/aksahaha/rainfall-india) | Meteorological subdivision, monthly totals, 1901–2021 | `python scripts/download_datasets.py` |
 | Groundwater | [CGWB India groundwater dataset](https://huggingface.co/datasets/Daksh17440/india_gwl) and [official CGWB quarterly portal](https://nwdp.nwic.gov.in/dataset/gwl-manual-quarterly-central-ground-water-board-department) | Monitoring station / observation date; confirm actual file metadata | Download/export manually to `data/raw/sources/groundwater_cgwb.csv` |
 | Reservoir | [Official CWC reservoir data](https://nwdp.nwic.gov.in/en/dataset/reservoir-water-level-manual-daily-centre-water-commission_cwc) | Reservoir / observation date; confirm whether exported field is level, volume, or percent | Download/export manually to `data/raw/sources/reservoir_cwc.csv` |
-| Demand | No verified measured demand source configured | Not available | Kept null; do not interpret as observed |
+| Demand (candidate) | [Telangana Water Supply Data for Urban Local Bodies](https://data.opencity.in/dataset/telangana-water-supply-data) | 72 Telangana ULBs; includes Water Demand (MLD), treatment capacity and service indicators; snapshot, not a quarterly time series | Public-domain metadata reported; inspect downloaded CSV and source attribution before use |
 
 The Kaggle download uses the official Kaggle CLI. Install it with
 `python -m pip install kaggle`. Configure `KAGGLE_USERNAME` and `KAGGLE_KEY`
@@ -83,8 +83,19 @@ you inspect the terms shown by each provider.
 
 ## WAI and model safeguards
 
-Water demand is intentionally null until a traceable measured source and compatible
-geography/frequency are provided. The current WAI formula requires demand, and its
+Water demand remains null in the quarterly integrated output. A promising Telangana
+candidate is the public-domain Telangana Water Supply Data resource for 72 Urban Local
+Bodies; its data dictionary includes Water Demand (MLD), but it is a snapshot rather
+than a verified quarterly time series. It can be retained as a separately dated ULB
+context table after downloading and inspecting the CSV, but must not be copied across
+historical quarters or relabelled as quarterly observations. The CGWB Dynamic Ground
+Water Resources district assessments include annual extraction by domestic,
+industrial and irrigation sectors; these are groundwater extraction/abstraction
+figures, not total water demand, and should remain a separate variable. NITI Aayog's
+2025 Water Budgeting in Aspirational Blocks documents an explicit estimated-demand
+method (rural 55 LPCD, urban 150 LPCD, 20% conveyance loss, Census 2011 population
+adjusted by growth factors). If used, store it as `estimated_demand`, preserve the
+method and assumptions, and never label it observed demand. The current WAI formula requires demand, and its
 current normalization is fitted on the full dataset before the train/test split.
 Therefore the real quarterly output is **not yet a valid WAI training dataset** and
 must not be passed into the current training pipeline as if WAI were observed.
